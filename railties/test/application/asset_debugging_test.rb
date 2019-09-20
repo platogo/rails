@@ -77,7 +77,8 @@ module ApplicationTests
         stylesheet_link_tag:    %r{<link rel="stylesheet" media="screen" href="/stylesheets/#{contents}.css" />},
         javascript_include_tag: %r{<script src="/javascripts/#{contents}.js">},
         audio_tag:              %r{<audio src="/audios/#{contents}"></audio>},
-        video_tag:              %r{<video src="/videos/#{contents}"></video>}
+        video_tag:              %r{<video src="/videos/#{contents}"></video>},
+        image_submit_tag:       %r{<input type="image" src="/images/#{contents}" />}
       }
 
       cases.each do |(view_method, tag_match)|
@@ -94,7 +95,7 @@ module ApplicationTests
       end
     end
 
-    test "public url methods are not over-written by the asset pipeline" do
+    test "public URL methods are not over-written by the asset pipeline" do
       contents = "doesnotexist"
       cases = {
         asset_url:       %r{http://example.org/#{contents}},

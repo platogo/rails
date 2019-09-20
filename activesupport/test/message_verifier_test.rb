@@ -25,12 +25,12 @@ class MessageVerifierTest < ActiveSupport::TestCase
 
   def test_valid_message
     data, hash = @verifier.generate(@data).split("--")
-    assert !@verifier.valid_message?(nil)
-    assert !@verifier.valid_message?("")
-    assert !@verifier.valid_message?("\xff") # invalid encoding
-    assert !@verifier.valid_message?("#{data.reverse}--#{hash}")
-    assert !@verifier.valid_message?("#{data}--#{hash.reverse}")
-    assert !@verifier.valid_message?("purejunk")
+    assert_not @verifier.valid_message?(nil)
+    assert_not @verifier.valid_message?("")
+    assert_not @verifier.valid_message?("\xff") # invalid encoding
+    assert_not @verifier.valid_message?("#{data.reverse}--#{hash}")
+    assert_not @verifier.valid_message?("#{data}--#{hash.reverse}")
+    assert_not @verifier.valid_message?("purejunk")
   end
 
   def test_simple_round_tripping
@@ -40,7 +40,7 @@ class MessageVerifierTest < ActiveSupport::TestCase
   end
 
   def test_verified_returns_false_on_invalid_message
-    assert !@verifier.verified("purejunk")
+    assert_not @verifier.verified("purejunk")
   end
 
   def test_verify_exception_on_invalid_message
@@ -53,7 +53,7 @@ class MessageVerifierTest < ActiveSupport::TestCase
     prev = ActiveSupport.use_standard_json_time_format
     ActiveSupport.use_standard_json_time_format = true
     verifier = ActiveSupport::MessageVerifier.new("Hey, I'm a secret!", serializer: JSONSerializer.new)
-    message = verifier.generate(:foo => 123, "bar" => Time.utc(2010))
+    message = verifier.generate({ :foo => 123, "bar" => Time.utc(2010) })
     exp = { "foo" => 123, "bar" => "2010-01-01T00:00:00.000Z" }
     assert_equal exp, verifier.verified(message)
     assert_equal exp, verifier.verify(message)
@@ -115,7 +115,7 @@ class MessageVerifierTest < ActiveSupport::TestCase
   end
 
   def test_on_rotation_is_called_and_verified_returns_message
-    older_message = ActiveSupport::MessageVerifier.new("older", digest: "SHA1").generate(encoded: "message")
+    older_message = ActiveSupport::MessageVerifier.new("older", digest: "SHA1").generate({ encoded: "message" })
 
     verifier = ActiveSupport::MessageVerifier.new(@secret, digest: "SHA512")
     verifier.rotate "old",   digest: "SHA256"
@@ -142,7 +142,7 @@ class MessageVerifierMetadataTest < ActiveSupport::TestCase
   include SharedMessageMetadataTests
 
   setup do
-    @verifier = ActiveSupport::MessageVerifier.new("Hey, I'm a secret!", verifier_options)
+    @verifier = ActiveSupport::MessageVerifier.new("Hey, I'm a secret!", **verifier_options)
   end
 
   def test_verify_raises_when_purpose_differs
@@ -162,11 +162,11 @@ class MessageVerifierMetadataTest < ActiveSupport::TestCase
 
   private
     def generate(message, **options)
-      @verifier.generate(message, options)
+      @verifier.generate(message, **options)
     end
 
     def parse(message, **options)
-      @verifier.verified(message, options)
+      @verifier.verified(message, **options)
     end
 
     def verifier_options

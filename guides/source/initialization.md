@@ -1,4 +1,4 @@
-**DO NOT READ THIS FILE ON GITHUB, GUIDES ARE PUBLISHED ON http://guides.rubyonrails.org.**
+**DO NOT READ THIS FILE ON GITHUB, GUIDES ARE PUBLISHED ON https://guides.rubyonrails.org.**
 
 The Rails Initialization Process
 ================================
@@ -45,7 +45,7 @@ load Gem.bin_path('railties', 'rails', version)
 ```
 
 If you try out this command in a Rails console, you would see that this loads
-`railties/exe/rails`. A part of the file `railties/exe/rails.rb` has the
+`railties/exe/rails`. A part of the file `railties/exe/rails` has the
 following code:
 
 ```ruby
@@ -108,6 +108,8 @@ A standard Rails application depends on several gems, specifically:
 * activerecord
 * activestorage
 * activesupport
+* actionmailbox
+* actiontext
 * arel
 * builder
 * bundler
@@ -160,8 +162,8 @@ namespace and executes the command if found.
 If Rails doesn't recognize the command, it hands the reins over to Rake
 to run a task of the same name.
 
-As shown, `Rails::Command` displays the help output automatically if the `args`
-are empty.
+As shown, `Rails::Command` displays the help output automatically if the `namespace`
+is empty.
 
 ```ruby
 module Rails::Command
@@ -289,7 +291,7 @@ def default_options
     environment:        (ENV["RAILS_ENV"] || ENV["RACK_ENV"] || "development").dup,
     daemonize:          false,
     caching:            nil,
-    pid:                Options::DEFAULT_PID_PATH,
+    pid:                ENV.fetch("PIDFILE", Options::DEFAULT_PIDFILE).dup,
     restart_cmd:        restart_command)
 end
 ```
@@ -532,12 +534,14 @@ require "rails"
 
 %w(
   active_record/railtie
+  active_storage/engine
   action_controller/railtie
   action_view/railtie
   action_mailer/railtie
   active_job/railtie
   action_cable/engine
-  active_storage/engine
+  action_mailbox/engine
+  action_text/engine
   rails/test_unit/railtie
   sprockets/railtie
 ).each do |railtie|

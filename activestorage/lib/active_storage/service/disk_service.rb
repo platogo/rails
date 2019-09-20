@@ -9,42 +9,49 @@ module ActiveStorage
   # Wraps a local disk path as an Active Storage service. See ActiveStorage::Service for the generic API
   # documentation that applies to all services.
   class Service::DiskService < Service
-    attr_reader :root, :host
+    attr_reader :root
 
-    def initialize(root:, host: "http://localhost:3000")
-      @root, @host = root, host
+    def initialize(root:)
+      @root = root
     end
 
-    def upload(key, io, checksum: nil)
+    def upload(key, io, checksum: nil, **)
       instrument :upload, key: key, checksum: checksum do
         IO.copy_stream(io, make_path_for(key))
         ensure_integrity_of(key, checksum) if checksum
       end
     end
 
-    def download(key)
+    def download(key, &block)
       if block_given?
         instrument :streaming_download, key: key do
-          File.open(path_for(key), "rb") do |file|
-            while data = file.read(64.kilobytes)
-              yield data
-            end
-          end
+          stream key, &block
         end
       else
         instrument :download, key: key do
           File.binread path_for(key)
+        rescue Errno::ENOENT
+          raise ActiveStorage::FileNotFoundError
         end
+      end
+    end
+
+    def download_chunk(key, range)
+      instrument :download_chunk, key: key, range: range do
+        File.open(path_for(key), "rb") do |file|
+          file.seek range.begin
+          file.read range.size
+        end
+      rescue Errno::ENOENT
+        raise ActiveStorage::FileNotFoundError
       end
     end
 
     def delete(key)
       instrument :delete, key: key do
-        begin
-          File.delete path_for(key)
-        rescue Errno::ENOENT
-          # Ignore files already deleted
-        end
+        File.delete path_for(key)
+      rescue Errno::ENOENT
+        # Ignore files already deleted
       end
     end
 
@@ -66,17 +73,27 @@ module ActiveStorage
 
     def url(key, expires_in:, filename:, disposition:, content_type:)
       instrument :url, key: key do |payload|
-        verified_key_with_expiration = ActiveStorage.verifier.generate(key, expires_in: expires_in, purpose: :blob_key)
+        content_disposition = content_disposition_with(type: disposition, filename: filename)
+        verified_key_with_expiration = ActiveStorage.verifier.generate(
+          {
+            key: key,
+            disposition: content_disposition,
+            content_type: content_type
+          },
+          expires_in: expires_in,
+          purpose: :blob_key
+        )
 
-        generated_url =
-          Rails.application.routes.url_helpers.rails_disk_service_url(
-            verified_key_with_expiration,
-            filename: filename,
-            disposition: content_disposition_with(type: disposition, filename: filename),
-            content_type: content_type,
-            host: host
-          )
+        current_uri = URI.parse(current_host)
 
+        generated_url = url_helpers.rails_disk_service_url(verified_key_with_expiration,
+          protocol: current_uri.scheme,
+          host: current_uri.host,
+          port: current_uri.port,
+          disposition: content_disposition,
+          content_type: content_type,
+          filename: filename
+        )
         payload[:url] = generated_url
 
         generated_url
@@ -92,11 +109,11 @@ module ActiveStorage
             content_length: content_length,
             checksum: checksum
           },
-          { expires_in: expires_in,
-          purpose: :blob_token }
+          expires_in: expires_in,
+          purpose: :blob_token
         )
 
-        generated_url = Rails.application.routes.url_helpers.update_rails_disk_service_url(verified_token_with_expiration, host: host)
+        generated_url = url_helpers.update_rails_disk_service_url(verified_token_with_expiration, host: current_host)
 
         payload[:url] = generated_url
 
@@ -108,9 +125,19 @@ module ActiveStorage
       { "Content-Type" => content_type }
     end
 
+    def path_for(key) #:nodoc:
+      File.join root, folder_for(key), key
+    end
+
     private
-      def path_for(key)
-        File.join root, folder_for(key), key
+      def stream(key)
+        File.open(path_for(key), "rb") do |file|
+          while data = file.read(5.megabytes)
+            yield data
+          end
+        end
+      rescue Errno::ENOENT
+        raise ActiveStorage::FileNotFoundError
       end
 
       def folder_for(key)
@@ -126,6 +153,14 @@ module ActiveStorage
           delete key
           raise ActiveStorage::IntegrityError
         end
+      end
+
+      def url_helpers
+        @url_helpers ||= Rails.application.routes.url_helpers
+      end
+
+      def current_host
+        ActiveStorage::Current.host
       end
   end
 end

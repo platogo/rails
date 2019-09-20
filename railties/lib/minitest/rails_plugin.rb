@@ -13,7 +13,7 @@ module Minitest
   end
 
   def self.plugin_rails_options(opts, options)
-    Rails::TestUnit::Runner.attach_before_load_options(opts)
+    ::Rails::TestUnit::Runner.attach_before_load_options(opts)
 
     opts.on("-b", "--backtrace", "Show the complete backtrace") do
       options[:full_backtrace] = true
@@ -54,6 +54,6 @@ module Minitest
     end
   end
 
-  # Backwardscompatibility with Rails 5.0 generated plugin test scripts
+  # Backwards compatibility with Rails 5.0 generated plugin test scripts
   mattr_reader :run_via, default: {}
 end

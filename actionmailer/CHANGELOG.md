@@ -1,8 +1,5 @@
-## Rails 6.0.0.alpha (Unreleased) ##
+*   Added `email_address_with_name` to properly escape addresses with names.
 
-*   Rails 6 requires Ruby 2.4.1 or newer.
+    *Sunny Ripert*
 
-    *Jeremy Daer*
-
-
-Please check [5-2-stable](https://github.com/rails/rails/blob/5-2-stable/actionmailer/CHANGELOG.md) for previous changes.
+Please check [6-0-stable](https://github.com/rails/rails/blob/6-0-stable/actionmailer/CHANGELOG.md) for previous changes.

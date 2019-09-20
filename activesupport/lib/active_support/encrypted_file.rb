@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "pathname"
+require "tmpdir"
 require "active_support/message_encryptor"
 
 module ActiveSupport
@@ -57,7 +58,7 @@ module ActiveSupport
 
     private
       def writing(contents)
-        tmp_file = "#{content_path.basename}.#{Process.pid}"
+        tmp_file = "#{Process.pid}.#{content_path.basename.to_s.chomp('.enc')}"
         tmp_path = Pathname.new File.join(Dir.tmpdir, tmp_file)
         tmp_path.binwrite contents
 
@@ -67,7 +68,7 @@ module ActiveSupport
 
         write(updated_contents) if updated_contents != contents
       ensure
-        FileUtils.rm(tmp_path) if tmp_path.exist?
+        FileUtils.rm(tmp_path) if tmp_path&.exist?
       end
 
 
@@ -93,7 +94,7 @@ module ActiveSupport
       end
 
       def handle_missing_key
-        raise MissingKeyError, key_path: key_path, env_key: env_key if raise_if_missing_key
+        raise MissingKeyError.new(key_path: key_path, env_key: env_key) if raise_if_missing_key
       end
   end
 end

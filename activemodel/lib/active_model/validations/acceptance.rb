@@ -10,12 +10,11 @@ module ActiveModel
 
       def validate_each(record, attribute, value)
         unless acceptable_option?(value)
-          record.errors.add(attribute, :accepted, options.except(:accept, :allow_nil))
+          record.errors.add(attribute, :accepted, **options.except(:accept, :allow_nil))
         end
       end
 
       private
-
         def setup!(klass)
           klass.include(LazilyDefineAttributes.new(AttributeDefinition.new(attributes)))
         end
@@ -54,8 +53,9 @@ module ActiveModel
           def define_on(klass)
             attr_readers = attributes.reject { |name| klass.attribute_method?(name) }
             attr_writers = attributes.reject { |name| klass.attribute_method?("#{name}=") }
-            klass.send(:attr_reader, *attr_readers)
-            klass.send(:attr_writer, *attr_writers)
+            klass.define_attribute_methods
+            klass.attr_reader(*attr_readers)
+            klass.attr_writer(*attr_writers)
           end
 
           private

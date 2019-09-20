@@ -2,25 +2,25 @@
 
 module ActiveJob
   module Serializers
-    # Base class for serializing and deserializing custom times.
+    # Base class for serializing and deserializing custom objects.
     #
-    # Example
+    # Example:
     #
-    #     class MoneySerializer < ActiveJob::Serializers::ObjectSerializer
-    #       def serialize(money)
-    #         super("cents" => money.cents, "currency" => money.currency)
-    #       end
-    #
-    #       def deserialize(hash)
-    #         Money.new(hash["cents"], hash["currency"])
-    #       end
-    #
-    #       private
-    #
-    #         def klass
-    #           Money
-    #         end
+    #   class MoneySerializer < ActiveJob::Serializers::ObjectSerializer
+    #     def serialize(money)
+    #       super("amount" => money.amount, "currency" => money.currency)
     #     end
+    #
+    #     def deserialize(hash)
+    #       Money.new(hash["amount"], hash["currency"])
+    #     end
+    #
+    #     private
+    #
+    #       def klass
+    #         Money
+    #       end
+    #   end
     class ObjectSerializer
       include Singleton
 
@@ -38,15 +38,14 @@ module ActiveJob
         { Arguments::OBJECT_SERIALIZER_KEY => self.class.name }.merge!(hash)
       end
 
-      # Deserilizes an argument form a JSON primiteve type.
+      # Deserializes an argument from a JSON primitive type.
       def deserialize(_argument)
         raise NotImplementedError
       end
 
-      protected
-
+      private
         # The class of the object that will be serialized.
-        def klass
+        def klass # :doc:
           raise NotImplementedError
         end
     end

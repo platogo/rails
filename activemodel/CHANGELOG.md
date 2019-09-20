@@ -1,8 +1,9 @@
-## Rails 6.0.0.alpha (Unreleased) ##
+*   Add *_previously_was attribute methods when dirty tracking. Example:
 
-*   Rails 6 requires Ruby 2.4.1 or newer.
+        pirate.update(catchphrase: "Ahoy!")
+        pirate.previous_changes["catchphrase"] # => ["Thar She Blows!", "Ahoy!"]
+        pirate.catchphrase_previously_was # => "Thar She Blows!"
 
-    *Jeremy Daer*
+    *DHH*
 
-
-Please check [5-2-stable](https://github.com/rails/rails/blob/5-2-stable/activemodel/CHANGELOG.md) for previous changes.
+Please check [6-0-stable](https://github.com/rails/rails/blob/6-0-stable/activemodel/CHANGELOG.md) for previous changes.

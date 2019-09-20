@@ -31,7 +31,7 @@ module CallbacksTest
 
       def callback_object(callback_method)
         klass = Class.new
-        klass.send(:define_method, callback_method) do |model|
+        klass.define_method(callback_method) do |model|
           model.history << [:"#{callback_method}_save", :object]
         end
         klass.new
@@ -256,7 +256,7 @@ module CallbacksTest
     end
 
     def respond_to_missing?(sym)
-      sym =~ /^(log|wrap)_/ || super
+      sym.match?(/^(log|wrap)_/) || super
     end
   end
 
@@ -397,7 +397,6 @@ module CallbacksTest
     end
 
     private
-
       def record1
         @recorder << 1
       end
@@ -829,7 +828,7 @@ module CallbacksTest
     def test_block_never_called_if_terminated
       obj = CallbackTerminator.new
       obj.save
-      assert !obj.saved
+      assert_not obj.saved
     end
   end
 
@@ -857,7 +856,7 @@ module CallbacksTest
     def test_block_never_called_if_abort_is_thrown
       obj = CallbackDefaultTerminator.new
       obj.save
-      assert !obj.saved
+      assert_not obj.saved
     end
   end
 
@@ -953,7 +952,7 @@ module CallbacksTest
 
     def test_proc_arity_2
       assert_raises(ArgumentError) do
-        klass = build_class(->(x, y) {})
+        klass = build_class(->(x, y) { })
         klass.new.run
       end
     end
@@ -989,6 +988,7 @@ module CallbacksTest
         define_callbacks :foo, scope: [:name]
         set_callback :foo, :before, :foo, if: callback
         def run; run_callbacks :foo; end
+
         private
           def foo; end
       }
@@ -1032,7 +1032,7 @@ module CallbacksTest
 
     def test_proc_arity2
       assert_raises(ArgumentError) do
-        object = build_class(->(a, b) {}).new
+        object = build_class(->(a, b) { }).new
         object.run
       end
     end

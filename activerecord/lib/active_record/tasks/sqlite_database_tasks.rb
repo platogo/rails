@@ -10,7 +10,7 @@ module ActiveRecord
       end
 
       def create
-        raise DatabaseAlreadyExists if File.exist?(configuration["database"])
+        raise DatabaseAlreadyExists if File.exist?(configuration[:database])
 
         establish_connection configuration
         connection
@@ -18,7 +18,7 @@ module ActiveRecord
 
       def drop
         require "pathname"
-        path = Pathname.new configuration["database"]
+        path = Pathname.new configuration[:database]
         file = path.absolute? ? path.to_s : File.join(root, path)
 
         FileUtils.rm(file)
@@ -40,7 +40,7 @@ module ActiveRecord
       def structure_dump(filename, extra_flags)
         args = []
         args.concat(Array(extra_flags)) if extra_flags
-        args << configuration["database"]
+        args << configuration[:database]
 
         ignore_tables = ActiveRecord::SchemaDumper.ignore_tables
         if ignore_tables.any?
@@ -53,27 +53,20 @@ module ActiveRecord
       end
 
       def structure_load(filename, extra_flags)
-        dbfile = configuration["database"]
+        dbfile = configuration[:database]
         flags = extra_flags.join(" ") if extra_flags
         `sqlite3 #{flags} #{dbfile} < "#{filename}"`
       end
 
       private
-
-        def configuration
-          @configuration
-        end
-
-        def root
-          @root
-        end
+        attr_reader :configuration, :root
 
         def run_cmd(cmd, args, out)
           fail run_cmd_error(cmd, args) unless Kernel.system(cmd, *args, out: out)
         end
 
         def run_cmd_error(cmd, args)
-          msg = "failed to execute:\n".dup
+          msg = +"failed to execute:\n"
           msg << "#{cmd} #{args.join(' ')}\n\n"
           msg << "Please check the output above for any errors and make sure that `#{cmd}` is installed in your PATH and has proper permissions.\n\n"
           msg
