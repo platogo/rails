@@ -359,6 +359,51 @@ class LoadingTest < ActiveSupport::TestCase
     assert_predicate Rails.application, :initialized?
   end
 
+  test "frameworks aren't loaded during initialization" do
+    app_file "config/initializers/raise_when_frameworks_load.rb", <<-RUBY
+      %i(action_controller action_mailer active_job active_record).each do |framework|
+        ActiveSupport.on_load(framework) { raise "\#{framework} loaded!" }
+      end
+    RUBY
+
+    assert_nothing_raised do
+      require "#{app_path}/config/environment"
+    end
+  end
+
+  test "active record query cache hooks are installed before first request" do
+    app_file "app/controllers/omg_controller.rb", <<-RUBY
+      begin
+        class OmgController < ActionController::Metal
+          ActiveSupport.run_load_hooks(:action_controller, self)
+          def show
+            if ActiveRecord::Base.connection.query_cache_enabled
+              self.response_body = ["Query cache is enabled."]
+            else
+              self.response_body = ["Expected ActiveRecord::Base.connection.query_cache_enabled to be true"]
+            end
+          end
+        end
+      rescue => e
+        puts "Error loading metal: \#{e.class} \#{e.message}"
+      end
+    RUBY
+
+    app_file "config/routes.rb", <<-RUBY
+      Rails.application.routes.draw do
+        get "/:controller(/:action)"
+      end
+    RUBY
+
+    require "#{rails_root}/config/environment"
+
+    require "rack/test"
+    extend Rack::Test::Methods
+
+    get "/omg/show"
+    assert_equal "Query cache is enabled.", last_response.body
+  end
+
   private
 
     def setup_ar!

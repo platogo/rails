@@ -304,7 +304,7 @@ module ActiveRecord
       def validate_single_association(reflection)
         association = association_instance_get(reflection.name)
         record      = association && association.reader
-        association_valid?(reflection, record) if record
+        association_valid?(reflection, record) if record && record.changed_for_autosave?
       end
 
       # Validate the associated records if <tt>:validate</tt> or
@@ -382,10 +382,14 @@ module ActiveRecord
         if association = association_instance_get(reflection.name)
           autosave = reflection.options[:autosave]
 
+          # By saving the instance variable in a local variable,
+          # we make the whole callback re-entrant.
+          new_record_before_save = @new_record_before_save
+
           # reconstruct the scope now that we know the owner's id
           association.reset_scope
 
-          if records = associated_records_to_validate_or_save(association, @new_record_before_save, autosave)
+          if records = associated_records_to_validate_or_save(association, new_record_before_save, autosave)
             if autosave
               records_to_destroy = records.select(&:marked_for_destruction?)
               records_to_destroy.each { |record| association.destroy(record) }
@@ -397,11 +401,16 @@ module ActiveRecord
 
               saved = true
 
-              if autosave != false && (@new_record_before_save || record.new_record?)
+              if autosave != false && (new_record_before_save || record.new_record?)
                 if autosave
                   saved = association.insert_record(record, false)
-                else
-                  association.insert_record(record) unless reflection.nested?
+                elsif !reflection.nested?
+                  association_saved = association.insert_record(record)
+
+                  if reflection.validate?
+                    errors.add(reflection.name) unless association_saved
+                    saved = association_saved
+                  end
                 end
               elsif autosave
                 saved = record.save(validate: false)
@@ -452,8 +461,14 @@ module ActiveRecord
       # If the record is new or it has changed, returns true.
       def record_changed?(reflection, record, key)
         record.new_record? ||
-          (record.has_attribute?(reflection.foreign_key) && record[reflection.foreign_key] != key) ||
+          association_foreign_key_changed?(reflection, record, key) ||
           record.will_save_change_to_attribute?(reflection.foreign_key)
+      end
+
+      def association_foreign_key_changed?(reflection, record, key)
+        return false if reflection.through_reflection?
+
+        record.has_attribute?(reflection.foreign_key) && record[reflection.foreign_key] != key
       end
 
       # Saves the associated record if it's new or <tt>:autosave</tt> is enabled.

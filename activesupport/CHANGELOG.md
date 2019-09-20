@@ -1,4 +1,124 @@
-*   Return all mappings for a timezone identifier in `country_zones`
+*   Make ActiveSupport::Logger Fiber-safe. Fixes #36752.
+
+    Use `Fiber.current.__id__` in `ActiveSupport::Logger#local_level=` in order
+    to make log level local to Ruby Fibers in addition to Threads.
+
+    Example:
+
+        logger = ActiveSupport::Logger.new(STDOUT)
+        logger.level = 1
+        p "Main is debug? #{logger.debug?}"
+
+        Fiber.new {
+          logger.local_level = 0
+          p "Thread is debug? #{logger.debug?}"
+        }.resume
+
+        p "Main is debug? #{logger.debug?}"
+
+    Before:
+
+        Main is debug? false
+        Thread is debug? true
+        Main is debug? true
+
+    After:
+
+        Main is debug? false
+        Thread is debug? true
+        Main is debug? false
+
+    *Alexander Varnin*
+
+
+## Rails 5.2.3 (March 27, 2019) ##
+
+*   Add `ActiveSupport::HashWithIndifferentAccess#assoc`.
+
+    `assoc` can now be called with either a string or a symbol.
+
+    *Stefan Schüßler*
+
+*   Fix `String#safe_constantize` throwing a `LoadError` for incorrectly cased constant references.
+
+    *Keenan Brock*
+
+*   Allow Range#=== and Range#cover? on Range
+
+    `Range#cover?` can now accept a range argument like `Range#include?` and
+    `Range#===`. `Range#===` works correctly on Ruby 2.6. `Range#include?` is moved
+    into a new file, with these two methods.
+
+    *utilum*
+
+*   If the same block is `included` multiple times for a Concern, an exception is no longer raised.
+
+    *Mark J. Titorenko*, *Vlad Bokov*
+
+
+## Rails 5.2.2.1 (March 11, 2019) ##
+
+*   No changes.
+
+
+## Rails 5.2.2 (December 04, 2018) ##
+
+*   Fix bug where `#to_options` for `ActiveSupport::HashWithIndifferentAccess`
+    would not act as alias for `#symbolize_keys`.
+
+    *Nick Weiland*
+
+*   Improve the logic that detects non-autoloaded constants.
+
+    *Jan Habermann*, *Xavier Noria*
+
+*   Fix bug where `URI.unescape` would fail with mixed Unicode/escaped character input:
+
+        URI.unescape("\xe3\x83\x90")  # => "バ"
+        URI.unescape("%E3%83%90")  # => "バ"
+        URI.unescape("\xe3\x83\x90%E3%83%90")  # => Encoding::CompatibilityError
+
+    *Ashe Connor*, *Aaron Patterson*
+
+
+## Rails 5.2.1.1 (November 27, 2018) ##
+
+*   No changes.
+
+
+## Rails 5.2.1 (August 07, 2018) ##
+
+*   Redis cache store: `delete_matched` no longer blocks the Redis server.
+    (Switches from evaled Lua to a batched SCAN + DEL loop.)
+
+    *Gleb Mazovetskiy*
+
+*   Fix bug where `ActiveSupport::Timezone.all` would fail when tzinfo data for
+    any timezone defined in `ActiveSupport::TimeZone::MAPPING` is missing.
+
+    *Dominik Sander*
+
+*   Fix bug where `ActiveSupport::Cache` will massively inflate the storage
+    size when compression is enabled (which is true by default). This patch
+    does not attempt to repair existing data: please manually flush the cache
+    to clear out the problematic entries.
+
+    *Godfrey Chan*
+
+*   Fix `ActiveSupport::Cache#read_multi` bug with local cache enabled that was
+    returning instances of `ActiveSupport::Cache::Entry` instead of the raw values.
+
+    *Jason Lee*
+
+
+## Rails 5.2.0 (April 09, 2018) ##
+
+*   Caching: MemCache and Redis `read_multi` and `fetch_multi` speedup.
+    Read from the local in-memory cache before consulting the backend.
+
+    *Gabriel Sobrinho*
+
+*   Return all mappings for a timezone identifier in `country_zones`.
 
     Some timezones like `Europe/London` have multiple mappings in
     `ActiveSupport::TimeZone::MAPPING` so return all of them instead
@@ -13,9 +133,6 @@
     Fixes #31668.
 
     *Andrew White*
-
-
-## Rails 5.2.0.rc1 (January 30, 2018) ##
 
 *   Add support for connection pooling on RedisCacheStore.
 
@@ -43,14 +160,6 @@
     `config.active_support.use_sha1_digests = true`.
 
     *Dmitri Dolguikh*, *Eugene Kenny*
-
-
-## Rails 5.2.0.beta2 (November 28, 2017) ##
-
-*   No changes.
-
-
-## Rails 5.2.0.beta1 (November 27, 2017) ##
 
 *   Changed default behaviour of `ActiveSupport::SecurityUtils.secure_compare`,
     to make it not leak length information even for variable length string.
@@ -80,7 +189,7 @@
 
     *Takumasa Ochi*
 
-*   Handle `TZInfo::AmbiguousTime` errors
+*   Handle `TZInfo::AmbiguousTime` errors.
 
     Make `ActiveSupport::TimeWithZone` match Ruby's handling of ambiguous
     times by choosing the later period, e.g.
@@ -159,7 +268,7 @@
 
     *Jeremy Daer*
 
-*   Allow `Range#include?` on TWZ ranges
+*   Allow `Range#include?` on TWZ ranges.
 
     In #11474 we prevented TWZ ranges being iterated over which matched
     Ruby's handling of Time ranges and as a consequence `include?`
@@ -172,7 +281,7 @@
 
     *Andrew White*
 
-*   Fix acronym support in `humanize`
+*   Fix acronym support in `humanize`.
 
     Acronym inflections are stored with lowercase keys in the hash but
     the match wasn't being lowercased before being looked up in the hash.
@@ -300,7 +409,7 @@
 
     *Yuji Yaginuma*
 
-*   Add key rotation support to `MessageEncryptor` and `MessageVerifier`
+*   Add key rotation support to `MessageEncryptor` and `MessageVerifier`.
 
     This change introduces a `rotate` method to both the `MessageEncryptor` and
     `MessageVerifier` classes. This method accepts the same arguments and
@@ -339,7 +448,7 @@
 
     *Anton Khamets*
 
-*   Update `String#camelize` to provide feedback when wrong option is passed
+*   Update `String#camelize` to provide feedback when wrong option is passed.
 
     `String#camelize` was returning nil without any feedback when an
     invalid option was passed as a parameter.
@@ -356,7 +465,7 @@
 
     *Ricardo Díaz*
 
-*   Fix modulo operations involving durations
+*   Fix modulo operations involving durations.
 
     Rails 5.1 introduced `ActiveSupport::Duration::Scalar` as a wrapper
     around numeric values as a way of ensuring a duration was the outcome of
@@ -378,7 +487,7 @@
 
     *Sayan Chakraborty*, *Andrew White*
 
-*   Fix division where a duration is the denominator
+*   Fix division where a duration is the denominator.
 
     PR #29163 introduced a change in behavior when a duration was the denominator
     in a calculation - this was incorrect as dividing by a duration should always
@@ -388,7 +497,7 @@
 
     *Andrew White*
 
-*   Add purpose and expiry support to `ActiveSupport::MessageVerifier` &
+*   Add purpose and expiry support to `ActiveSupport::MessageVerifier` and
    `ActiveSupport::MessageEncryptor`.
 
     For instance, to ensure a message is only usable for one intended purpose:
@@ -425,7 +534,7 @@
 
     *Assain Jaleel*
 
-*   Cache: `write_multi`
+*   Cache: `write_multi`.
 
         Rails.cache.write_multi foo: 'bar', baz: 'qux'
 
@@ -474,7 +583,7 @@
 
     *DHH*
 
-*   Fix implicit coercion calculations with scalars and durations
+*   Fix implicit coercion calculations with scalars and durations.
 
     Previously, calculations where the scalar is first would be converted to a duration
     of seconds, but this causes issues with dates being converted to times, e.g:
@@ -506,17 +615,17 @@
 
     *Willem van Bergen*
 
-*   Add support for `:offset` and `:zone` to `ActiveSupport::TimeWithZone#change`
+*   Add support for `:offset` and `:zone` to `ActiveSupport::TimeWithZone#change`.
 
     *Andrew White*
 
-*   Add support for `:offset` to `Time#change`
+*   Add support for `:offset` to `Time#change`.
 
     Fixes #28723.
 
     *Andrew White*
 
-*   Add `fetch_values` for `HashWithIndifferentAccess`
+*   Add `fetch_values` for `HashWithIndifferentAccess`.
 
     The method was originally added to `Hash` in Ruby 2.3.0.
 

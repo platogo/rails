@@ -1,4 +1,64 @@
-## Rails 5.2.0.rc1 (January 30, 2018) ##
+*   Type cast falsy boolean symbols on boolean attribute as false.
+
+    Fixes #35676.
+
+    *Ryuta Kamizono*
+
+
+## Rails 5.2.3 (March 27, 2019) ##
+
+*   Fix date value when casting a multiparameter date hash to not convert
+    from Gregorian date to Julian date.
+
+    Before:
+
+        Day.new({"day(1i)"=>"1", "day(2i)"=>"1", "day(3i)"=>"1"})
+        => #<Day id: nil, day: "0001-01-03", created_at: nil, updated_at: nil>
+
+    After:
+
+        Day.new({"day(1i)"=>"1", "day(2i)"=>"1", "day(3i)"=>"1"})
+        => #<Day id: nil, day: "0001-01-01", created_at: nil, updated_at: nil>
+
+    Fixes #28521.
+
+    *Sayan Chakraborty*
+
+*   Fix numericality equality validation of `BigDecimal` and `Float`
+    by casting to `BigDecimal` on both ends of the validation.
+
+    *Gannon McGibbon*
+
+
+## Rails 5.2.2.1 (March 11, 2019) ##
+
+*   No changes.
+
+
+## Rails 5.2.2 (December 04, 2018) ##
+
+*   Fix numericality validator to still use value before type cast except Active Record.
+
+    Fixes #33651, #33686.
+
+    *Ryuta Kamizono*
+
+
+## Rails 5.2.1.1 (November 27, 2018) ##
+
+*   No changes.
+
+
+## Rails 5.2.1 (August 07, 2018) ##
+
+*   No changes.
+
+
+## Rails 5.2.0 (April 09, 2018) ##
+
+*   Do not lose all multiple `:includes` with options in serialization.
+
+    *Mike Mangino*
 
 *   Models using the attributes API with a proc default can now be marshalled.
 
@@ -9,14 +69,6 @@
 *   Fix to working before/after validation callbacks on multiple contexts.
 
     *Yoshiyuki Hirano*
-
-
-## Rails 5.2.0.beta2 (November 28, 2017) ##
-
-*   No changes.
-
-
-## Rails 5.2.0.beta1 (November 27, 2017) ##
 
 *   Execute `ConfirmationValidator` validation when `_confirmation`'s value is `false`.
 

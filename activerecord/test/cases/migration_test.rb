@@ -693,6 +693,25 @@ class MigrationTest < ActiveRecord::TestCase
       assert_no_column Person, :last_name,
         "without an advisory lock, the Migrator should not make any changes, but it did."
     end
+
+    def test_with_advisory_lock_raises_the_right_error_when_it_fails_to_release_lock
+      migration = Class.new(ActiveRecord::Migration::Current).new
+      migrator = ActiveRecord::Migrator.new(:up, [migration], 100)
+      lock_id = migrator.send(:generate_migrator_advisory_lock_id)
+
+      e = assert_raises(ActiveRecord::ConcurrentMigrationError) do
+        silence_stream($stderr) do
+          migrator.send(:with_advisory_lock) do
+            ActiveRecord::Base.connection.release_advisory_lock(lock_id)
+          end
+        end
+      end
+
+      assert_match(
+        /#{ActiveRecord::ConcurrentMigrationError::RELEASE_LOCK_FAILED_MESSAGE}/,
+        e.message
+      )
+    end
   end
 
   private
@@ -776,12 +795,20 @@ if ActiveRecord::Base.connection.supports_bulk_alter?
     end
 
     def test_adding_multiple_columns
-      assert_queries(1) do
+      classname = ActiveRecord::Base.connection.class.name[/[^:]*$/]
+      expected_query_count = {
+        "Mysql2Adapter"     => 1,
+        "PostgreSQLAdapter" => 2, # one for bulk change, one for comment
+      }.fetch(classname) {
+        raise "need an expected query count for #{classname}"
+      }
+
+      assert_queries(expected_query_count) do
         with_bulk_change_table do |t|
           t.column :name, :string
           t.string :qualification, :experience
           t.integer :age, default: 0
-          t.date :birthdate
+          t.date :birthdate, comment: "This is a comment"
           t.timestamps null: true
         end
       end
@@ -789,6 +816,7 @@ if ActiveRecord::Base.connection.supports_bulk_alter?
       assert_equal 8, columns.size
       [:name, :qualification, :experience].each { |s| assert_equal :string, column(s).type }
       assert_equal "0", column(:age).default
+      assert_equal "This is a comment", column(:birthdate).comment
     end
 
     def test_removing_columns

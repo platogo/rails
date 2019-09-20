@@ -20,14 +20,14 @@ module ActiveStorage::Blob::Representable
   #
   #   <%= image_tag Current.user.avatar.variant(resize: "100x100") %>
   #
-  # This will create a URL for that specific blob with that specific variant, which the ActiveStorage::VariantsController
+  # This will create a URL for that specific blob with that specific variant, which the ActiveStorage::RepresentationsController
   # can then produce on-demand.
   #
   # Raises ActiveStorage::InvariableError if ImageMagick cannot transform the blob. To determine whether a blob is
   # variable, call ActiveStorage::Blob#variable?.
   def variant(transformations)
     if variable?
-      ActiveStorage::Variant.new(self, ActiveStorage::Variation.wrap(transformations))
+      ActiveStorage::Variant.new(self, transformations)
     else
       raise ActiveStorage::InvariableError
     end
@@ -55,7 +55,7 @@ module ActiveStorage::Blob::Representable
   # whether a blob is accepted by any previewer, call ActiveStorage::Blob#previewable?.
   def preview(transformations)
     if previewable?
-      ActiveStorage::Preview.new(self, ActiveStorage::Variation.wrap(transformations))
+      ActiveStorage::Preview.new(self, transformations)
     else
       raise ActiveStorage::UnpreviewableError
     end

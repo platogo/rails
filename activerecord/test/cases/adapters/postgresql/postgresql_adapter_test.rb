@@ -240,9 +240,11 @@ module ActiveRecord
 
       def test_expression_index
         with_example_table do
-          @connection.add_index "ex", "mod(id, 10), abs(number)", name: "expression"
+          expr = "mod(id, 10), abs(number)"
+          @connection.add_index "ex", expr, name: "expression"
           index = @connection.indexes("ex").find { |idx| idx.name == "expression" }
-          assert_equal "mod(id, 10), abs(number)", index.columns
+          assert_equal expr, index.columns
+          assert_equal true, @connection.index_exists?("ex", expr, name: "expression")
         end
       end
 
@@ -263,25 +265,25 @@ module ActiveRecord
       end
 
       def test_columns_for_distinct_one_order
-        assert_equal "posts.id, posts.created_at AS alias_0",
+        assert_equal "posts.created_at AS alias_0, posts.id",
           @connection.columns_for_distinct("posts.id", ["posts.created_at desc"])
       end
 
       def test_columns_for_distinct_few_orders
-        assert_equal "posts.id, posts.created_at AS alias_0, posts.position AS alias_1",
+        assert_equal "posts.created_at AS alias_0, posts.position AS alias_1, posts.id",
           @connection.columns_for_distinct("posts.id", ["posts.created_at desc", "posts.position asc"])
       end
 
       def test_columns_for_distinct_with_case
         assert_equal(
-          "posts.id, CASE WHEN author.is_active THEN UPPER(author.name) ELSE UPPER(author.email) END AS alias_0",
+          "CASE WHEN author.is_active THEN UPPER(author.name) ELSE UPPER(author.email) END AS alias_0, posts.id",
           @connection.columns_for_distinct("posts.id",
             ["CASE WHEN author.is_active THEN UPPER(author.name) ELSE UPPER(author.email) END"])
         )
       end
 
       def test_columns_for_distinct_blank_not_nil_orders
-        assert_equal "posts.id, posts.created_at AS alias_0",
+        assert_equal "posts.created_at AS alias_0, posts.id",
           @connection.columns_for_distinct("posts.id", ["posts.created_at desc", "", "   "])
       end
 
@@ -290,23 +292,23 @@ module ActiveRecord
         def order.to_sql
           "posts.created_at desc"
         end
-        assert_equal "posts.id, posts.created_at AS alias_0",
+        assert_equal "posts.created_at AS alias_0, posts.id",
           @connection.columns_for_distinct("posts.id", [order])
       end
 
       def test_columns_for_distinct_with_nulls
-        assert_equal "posts.title, posts.updater_id AS alias_0", @connection.columns_for_distinct("posts.title", ["posts.updater_id desc nulls first"])
-        assert_equal "posts.title, posts.updater_id AS alias_0", @connection.columns_for_distinct("posts.title", ["posts.updater_id desc nulls last"])
+        assert_equal "posts.updater_id AS alias_0, posts.title", @connection.columns_for_distinct("posts.title", ["posts.updater_id desc nulls first"])
+        assert_equal "posts.updater_id AS alias_0, posts.title", @connection.columns_for_distinct("posts.title", ["posts.updater_id desc nulls last"])
       end
 
       def test_columns_for_distinct_without_order_specifiers
-        assert_equal "posts.title, posts.updater_id AS alias_0",
+        assert_equal "posts.updater_id AS alias_0, posts.title",
           @connection.columns_for_distinct("posts.title", ["posts.updater_id"])
 
-        assert_equal "posts.title, posts.updater_id AS alias_0",
+        assert_equal "posts.updater_id AS alias_0, posts.title",
           @connection.columns_for_distinct("posts.title", ["posts.updater_id nulls last"])
 
-        assert_equal "posts.title, posts.updater_id AS alias_0",
+        assert_equal "posts.updater_id AS alias_0, posts.title",
           @connection.columns_for_distinct("posts.title", ["posts.updater_id nulls first"])
       end
 

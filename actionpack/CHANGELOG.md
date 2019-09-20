@@ -1,9 +1,220 @@
+## Rails 5.2.3 (March 27, 2019) ##
+
+*   Allow using `public` and `no-cache` together in the the Cache Control header.
+
+    Before this change, even if `public` was specified in the Cache Control header,
+    it was excluded when `no-cache` was included. This change preserves the
+    `public` value as is.
+
+    Fixes #34780.
+
+    *Yuji Yaginuma*
+
+*   Allow `nil` params for `ActionController::TestCase`.
+
+    *Ryo Nakamura*
+
+
+## Rails 5.2.2.1 (March 11, 2019) ##
+
+*   No changes.
+
+
+## Rails 5.2.2 (December 04, 2018) ##
+
+*   Reset Capybara sessions if failed system test screenshot raising an exception.
+
+    Reset Capybara sessions if `take_failed_screenshot` raise exception
+    in system test `after_teardown`.
+
+    *Maxim Perepelitsa*
+
+*   Use request object for context if there's no controller
+
+    There is no controller instance when using a redirect route or a
+    mounted rack application so pass the request object as the context
+    when resolving dynamic CSP sources in this scenario.
+
+    Fixes #34200.
+
+    *Andrew White*
+
+*   Apply mapping to symbols returned from dynamic CSP sources
+
+    Previously if a dynamic source returned a symbol such as :self it
+    would be converted to a string implicity, e.g:
+
+        policy.default_src -> { :self }
+
+    would generate the header:
+
+        Content-Security-Policy: default-src self
+
+    and now it generates:
+
+        Content-Security-Policy: default-src 'self'
+
+    *Andrew White*
+
+*   Fix `rails routes -c` for controller name consists of multiple word.
+
+    *Yoshiyuki Kinjo*
+
+*   Call the `#redirect_to` block in controller context.
+
+    *Steven Peckins*
+
+
+## Rails 5.2.1.1 (November 27, 2018) ##
+
+*   No changes.
+
+
+## Rails 5.2.1 (August 07, 2018) ##
+
+*   Prevent `?null=` being passed on JSON encoded test requests.
+
+    `RequestEncoder#encode_params` won't attempt to parse params if
+    there are none.
+
+    So call like this will no longer append a `?null=` query param.
+
+        get foos_url, as: :json
+
+    *Alireza Bashiri*
+
+*   Ensure `ActionController::Parameters#transform_values` and
+    `ActionController::Parameters#transform_values!` converts hashes into
+    parameters.
+
+    *Kevin Sjöberg*
+
+*   Fix strong parameters `permit!` with nested arrays.
+
+    Given:
+    ```
+    params = ActionController::Parameters.new(nested_arrays: [[{ x: 2, y: 3 }, { x: 21, y: 42 }]])
+    params.permit!
+    ```
+
+    `params[:nested_arrays][0][0].permitted?` will now return `true` instead of `false`.
+
+    *Steve Hull*
+
+*   Reset `RAW_POST_DATA` and `CONTENT_LENGTH` request environment between test requests in
+    `ActionController::TestCase` subclasses.
+
+    *Eugene Kenny*
+
+*   Output only one Content-Security-Policy nonce header value per request.
+
+    Fixes #32597.
+
+    *Andrey Novikov*, *Andrew White*
+
+*   Only disable GPUs for headless Chrome on Windows.
+
+    It is not necessary anymore for Linux and macOS machines.
+
+    https://bugs.chromium.org/p/chromium/issues/detail?id=737678#c1
+
+    *Stefan Wrobel*
+
+*   Fix system tests transactions not closed between examples.
+
+    *Sergey Tarasov*
+
+
+## Rails 5.2.0 (April 09, 2018) ##
+
+*   Check exclude before flagging cookies as secure.
+
+    *Catherine Khuu*
+
+*   Always yield a CSP policy instance from `content_security_policy`
+
+    This allows a controller action to enable the policy individually
+    for a controller and/or specific actions.
+
+    *Andrew White*
+
+*   Add the ability to disable the global CSP in a controller, e.g:
+
+        class LegacyPagesController < ApplicationController
+          content_security_policy false, only: :index
+        end
+
+    *Andrew White*
+
+*   Add alias method `to_hash` to `to_h` for `cookies`.
+    Add alias method `to_h` to `to_hash` for `session`.
+
+    *Igor Kasyanchuk*
+
+*   Update the default HSTS max-age value to 31536000 seconds (1 year)
+    to meet the minimum max-age requirement for https://hstspreload.org/.
+
+    *Grant Bourque*
+
+*   Add support for automatic nonce generation for Rails UJS.
+
+    Because the UJS library creates a script tag to process responses it
+    normally requires the script-src attribute of the content security
+    policy to include 'unsafe-inline'.
+
+    To work around this we generate a per-request nonce value that is
+    embedded in a meta tag in a similar fashion to how CSRF protection
+    embeds its token in a meta tag. The UJS library can then read the
+    nonce value and set it on the dynamically generated script tag to
+    enable it to execute without needing 'unsafe-inline' enabled.
+
+    Nonce generation isn't 100% safe - if your script tag is including
+    user generated content in someway then it may be possible to exploit
+    an XSS vulnerability which can take advantage of the nonce. It is
+    however an improvement on a blanket permission for inline scripts.
+
+    It is also possible to use the nonce within your own script tags by
+    using `nonce: true` to set the nonce value on the tag, e.g
+
+        <%= javascript_tag nonce: true do %>
+          alert('Hello, World!');
+        <% end %>
+
+    Fixes #31689.
+
+    *Andrew White*
+
 *   Matches behavior of `Hash#each` in `ActionController::Parameters#each`.
 
+    Rails 5.0 introduced a bug when looping through controller params using `each`. Only the keys of params hash were passed to the block, e.g.
+
+        # Parameters: {"param"=>"1", "param_two"=>"2"}
+        def index
+          params.each do |name|
+            puts name
+          end
+        end
+
+        # Prints
+        # param
+        # param_two
+
+    In Rails 5.2 the bug has been fixed and name will be an array (which was the behavior for all versions prior to 5.0), instead of a string.
+
+    To fix the code above simply change as per example below:
+
+        # Parameters: {"param"=>"1", "param_two"=>"2"}
+        def index
+          params.each do |name, value|
+            puts name
+          end
+        end
+
+        # Prints
+        # param
+        # param_two
+
     *Dominic Cleal*
-
-
-## Rails 5.2.0.rc1 (January 30, 2018) ##
 
 *   Add `Referrer-Policy` header to default headers set.
 
@@ -39,21 +250,13 @@
 
     *Guillermo Iguaran*
 
-*   Fix optimized url helpers when using relative url root
+*   Fix optimized url helpers when using relative url root.
 
     Fixes #31220.
 
     *Andrew White*
 
-
-## Rails 5.2.0.beta2 (November 28, 2017) ##
-
-*   No changes.
-
-
-## Rails 5.2.0.beta1 (November 27, 2017) ##
-
-*   Add DSL for configuring Content-Security-Policy header
+*   Add DSL for configuring Content-Security-Policy header.
 
     The DSL allows you to configure a global Content-Security-Policy
     header and then override within a controller. For more information
@@ -105,7 +308,7 @@
 
         # controller override
         class PostsController < ApplicationController
-          self.content_security_policy_report_only = true
+          content_security_policy_report_only only: :index
         end
 
     Note that this feature does not validate the header for performance
@@ -113,7 +316,7 @@
 
     *Andrew White*
 
-*   Make `assert_recognizes` to traverse mounted engines
+*   Make `assert_recognizes` to traverse mounted engines.
 
     *Yuichiro Kaneko*
 

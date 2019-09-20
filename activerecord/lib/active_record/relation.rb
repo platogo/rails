@@ -29,6 +29,7 @@ module ActiveRecord
       @offsets = {}
       @loaded = false
       @predicate_builder = predicate_builder
+      @delegate_to_klass = false
     end
 
     def initialize_copy(other)
@@ -53,7 +54,7 @@ module ActiveRecord
     #   user = users.new { |user| user.name = 'Oscar' }
     #   user.name # => Oscar
     def new(attributes = nil, &block)
-      scoping { klass.new(scope_for_create(attributes), &block) }
+      scoping { klass.new(values_for_create(attributes), &block) }
     end
 
     alias build new
@@ -81,7 +82,7 @@ module ActiveRecord
       if attributes.is_a?(Array)
         attributes.collect { |attr| create(attr, &block) }
       else
-        scoping { klass.create(scope_for_create(attributes), &block) }
+        scoping { klass.create(values_for_create(attributes), &block) }
       end
     end
 
@@ -95,7 +96,7 @@ module ActiveRecord
       if attributes.is_a?(Array)
         attributes.collect { |attr| create!(attr, &block) }
       else
-        scoping { klass.create!(scope_for_create(attributes), &block) }
+        scoping { klass.create!(values_for_create(attributes), &block) }
       end
     end
 
@@ -276,10 +277,17 @@ module ActiveRecord
     # Please check unscoped if you want to remove all previous scopes (including
     # the default_scope) during the execution of a block.
     def scoping
-      previous, klass.current_scope = klass.current_scope(true), self
+      previous, klass.current_scope = klass.current_scope(true), self unless @delegate_to_klass
       yield
     ensure
-      klass.current_scope = previous
+      klass.current_scope = previous unless @delegate_to_klass
+    end
+
+    def _exec_scope(*args, &block) # :nodoc:
+      @delegate_to_klass = true
+      instance_exec(*args, &block) || self
+    ensure
+      @delegate_to_klass = false
     end
 
     # Updates all records in the current relation with details given. This method constructs a single SQL UPDATE
@@ -327,6 +335,14 @@ module ActiveRecord
       end
 
       @klass.connection.update stmt, "#{@klass} Update All"
+    end
+
+    def update(id = :all, attributes) # :nodoc:
+      if id == :all
+        each { |record| record.update(attributes) }
+      else
+        klass.update(id, attributes)
+      end
     end
 
     # Destroys the records by instantiating each
@@ -415,6 +431,7 @@ module ActiveRecord
     end
 
     def reset
+      @delegate_to_klass = false
       @to_sql = @arel = @loaded = @should_eager_load = nil
       @records = [].freeze
       @offsets = {}
@@ -427,17 +444,16 @@ module ActiveRecord
     #   # => SELECT "users".* FROM "users"  WHERE "users"."name" = 'Oscar'
     def to_sql
       @to_sql ||= begin
-                    relation = self
-
-                    if eager_loading?
-                      apply_join_dependency { |rel, _| relation = rel }
-                    end
-
-                    conn = klass.connection
-                    conn.unprepared_statement {
-                      conn.to_sql(relation.arel)
-                    }
-                  end
+        if eager_loading?
+          apply_join_dependency do |relation, join_dependency|
+            relation = join_dependency.apply_column_aliases(relation)
+            relation.to_sql
+          end
+        else
+          conn = klass.connection
+          conn.unprepared_statement { conn.to_sql(arel) }
+        end
+      end
     end
 
     # Returns a hash of where conditions.
@@ -448,10 +464,8 @@ module ActiveRecord
       where_clause.to_h(relation_table_name)
     end
 
-    def scope_for_create(attributes = nil)
-      scope = where_values_hash.merge!(create_with_value.stringify_keys)
-      scope.merge!(attributes) if attributes
-      scope
+    def scope_for_create
+      where_values_hash.merge!(create_with_value.stringify_keys)
     end
 
     # Returns true if relation needs eager loading.
@@ -537,6 +551,7 @@ module ActiveRecord
                 if ActiveRecord::NullRelation === relation
                   []
                 else
+                  relation = join_dependency.apply_column_aliases(relation)
                   rows = connection.select_all(relation.arel, "SQL")
                   join_dependency.instantiate(rows, &block)
                 end.freeze
@@ -596,6 +611,19 @@ module ActiveRecord
         # always convert table names to downcase as in Oracle quoted table names are in uppercase
         # ignore raw_sql_ that is used by Oracle adapter as alias for limit/offset subqueries
         string.scan(/([a-zA-Z_][.\w]+).?\./).flatten.map(&:downcase).uniq - ["raw_sql_"]
+      end
+
+      def values_for_create(attributes = nil)
+        result = attributes ? where_values_hash.merge!(attributes) : where_values_hash
+
+        # NOTE: if there are same keys in both create_with and result, create_with should be used.
+        # This is to make sure nested attributes don't get passed to the klass.new,
+        # while keeping the precedence of the duplicate keys in create_with.
+        create_with_value.stringify_keys.each do |k, v|
+          result[k] = v if result.key?(k)
+        end
+
+        result
       end
   end
 end

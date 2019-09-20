@@ -13,13 +13,16 @@ gem "rake", ">= 11.1"
 # be loaded after loading the test library.
 gem "mocha", require: false
 
-gem "capybara", "~> 2.15"
+if RUBY_VERSION < "2.3"
+  gem "capybara", ">= 2.15", "< 3.2"
+else
+  gem "capybara", ">= 2.15"
+end
 
 gem "rack-cache", "~> 1.2"
 gem "coffee-rails"
 gem "sass-rails"
 gem "turbolinks", "~> 5"
-gem "webmock"
 
 # require: false so bcrypt is loaded only when has_secure_password is used.
 # This is to avoid Active Model (and by extension the entire framework)
@@ -39,7 +42,7 @@ gem "rubocop", ">= 0.47", require: false
 gem "rb-inotify", github: "matthewd/rb-inotify", branch: "close-handling", require: false
 
 # https://github.com/puma/puma/pull/1345
-gem "stopgap_13632", platforms: :mri if RUBY_VERSION == "2.2.8"
+gem "stopgap_13632", github: "pixeltrix/stopgap_13632", platforms: :mri if RUBY_VERSION < "2.3"
 
 group :doc do
   gem "sdoc", "~> 1.0"
@@ -95,6 +98,12 @@ end
 group :storage do
   gem "aws-sdk-s3", require: false
   gem "google-cloud-storage", "~> 1.8", require: false
+  if RUBY_VERSION < "2.3.0"
+    # google-auth-library-ruby 0.8.1 needs Ruby 2.3
+    # If Ruby version is 2.3.0 or higher, let google-cloud-storage find
+    # the googleauth gem version.
+    gem "googleauth", "<= 0.8.0", require: false
+  end
   gem "azure-storage", require: false
 
   gem "mini_magick"
@@ -127,7 +136,7 @@ platforms :ruby, :mswin, :mswin64, :mingw, :x64_mingw do
   gem "racc", ">=1.4.6", require: false
 
   # Active Record.
-  gem "sqlite3", "~> 1.3.6"
+  gem "sqlite3", "~> 1.3", ">= 1.3.6"
 
   group :db do
     gem "pg", ">= 0.18.0"

@@ -21,7 +21,9 @@ module ActionDispatch #:nodoc:
         return response if policy_present?(headers)
 
         if policy = request.content_security_policy
-          headers[header_name(request)] = policy.build(request.controller_instance)
+          nonce = request.content_security_policy_nonce
+          context = request.controller_instance || request
+          headers[header_name(request)] = policy.build(context, nonce)
         end
 
         response
@@ -51,6 +53,8 @@ module ActionDispatch #:nodoc:
     module Request
       POLICY = "action_dispatch.content_security_policy".freeze
       POLICY_REPORT_ONLY = "action_dispatch.content_security_policy_report_only".freeze
+      NONCE_GENERATOR = "action_dispatch.content_security_policy_nonce_generator".freeze
+      NONCE = "action_dispatch.content_security_policy_nonce".freeze
 
       def content_security_policy
         get_header(POLICY)
@@ -67,6 +71,30 @@ module ActionDispatch #:nodoc:
       def content_security_policy_report_only=(value)
         set_header(POLICY_REPORT_ONLY, value)
       end
+
+      def content_security_policy_nonce_generator
+        get_header(NONCE_GENERATOR)
+      end
+
+      def content_security_policy_nonce_generator=(generator)
+        set_header(NONCE_GENERATOR, generator)
+      end
+
+      def content_security_policy_nonce
+        if content_security_policy_nonce_generator
+          if nonce = get_header(NONCE)
+            nonce
+          else
+            set_header(NONCE, generate_content_security_policy_nonce)
+          end
+        end
+      end
+
+      private
+
+        def generate_content_security_policy_nonce
+          content_security_policy_nonce_generator.call(self)
+        end
     end
 
     MAPPINGS = {
@@ -81,7 +109,9 @@ module ActionDispatch #:nodoc:
       blob:           "blob:",
       filesystem:     "filesystem:",
       report_sample:  "'report-sample'",
-      strict_dynamic: "'strict-dynamic'"
+      strict_dynamic: "'strict-dynamic'",
+      ws:             "ws:",
+      wss:            "wss:"
     }.freeze
 
     DIRECTIVES = {
@@ -102,7 +132,9 @@ module ActionDispatch #:nodoc:
       worker_src:      "worker-src"
     }.freeze
 
-    private_constant :MAPPINGS, :DIRECTIVES
+    NONCE_DIRECTIVES = %w[script-src].freeze
+
+    private_constant :MAPPINGS, :DIRECTIVES, :NONCE_DIRECTIVES
 
     attr_reader :directives
 
@@ -171,8 +203,8 @@ module ActionDispatch #:nodoc:
       end
     end
 
-    def build(context = nil)
-      build_directives(context).compact.join("; ")
+    def build(context = nil, nonce = nil)
+      build_directives(context, nonce).compact.join("; ")
     end
 
     private
@@ -195,10 +227,14 @@ module ActionDispatch #:nodoc:
         end
       end
 
-      def build_directives(context)
+      def build_directives(context, nonce)
         @directives.map do |directive, sources|
           if sources.is_a?(Array)
-            "#{directive} #{build_directive(sources, context).join(' ')}"
+            if nonce && nonce_directive?(directive)
+              "#{directive} #{build_directive(sources, context).join(' ')} 'nonce-#{nonce}'"
+            else
+              "#{directive} #{build_directive(sources, context).join(' ')}"
+            end
           elsif sources
             directive
           else
@@ -221,11 +257,16 @@ module ActionDispatch #:nodoc:
           if context.nil?
             raise RuntimeError, "Missing context for the dynamic content security policy source: #{source.inspect}"
           else
-            context.instance_exec(&source)
+            resolved = context.instance_exec(&source)
+            resolved.is_a?(Symbol) ? apply_mapping(resolved) : resolved
           end
         else
           raise RuntimeError, "Unexpected content security policy source: #{source.inspect}"
         end
+      end
+
+      def nonce_directive?(directive)
+        NONCE_DIRECTIVES.include?(directive)
       end
   end
 end

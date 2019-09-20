@@ -3,6 +3,7 @@
 module ActiveModel
   module Type
     class Date < Value # :nodoc:
+      include Helpers::Timezone
       include Helpers::AcceptsMultiparameterTime.new
 
       def type
@@ -42,14 +43,14 @@ module ActiveModel
         end
 
         def new_date(year, mon, mday)
-          if year && year != 0
+          unless year.nil? || (year == 0 && mon == 0 && mday == 0)
             ::Date.new(year, mon, mday) rescue nil
           end
         end
 
         def value_from_multiparameter_assignment(*)
           time = super
-          time && time.to_date
+          time && new_date(time.year, time.mon, time.mday)
         end
     end
   end

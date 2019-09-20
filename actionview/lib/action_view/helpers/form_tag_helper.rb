@@ -163,6 +163,8 @@ module ActionView
       # * <tt>:size</tt> - The number of visible characters that will fit in the input.
       # * <tt>:maxlength</tt> - The maximum number of characters that the browser will allow the user to enter.
       # * <tt>:placeholder</tt> - The text contained in the field by default which is removed when the field receives focus.
+      #   If set to true, use a translation is found in the current I18n locale
+      #   (through helpers.placeholders.<modelname>.<attribute>).
       # * Any other key creates standard HTML attributes for the tag.
       #
       # ==== Examples
@@ -549,7 +551,8 @@ module ActionView
       #   # => <input src="/assets/save.png" data-confirm="Are you sure?" type="image" />
       def image_submit_tag(source, options = {})
         options = options.stringify_keys
-        tag :input, { "type" => "image", "src" => path_to_image(source) }.update(options)
+        src = path_to_image(source, skip_pipeline: options.delete("skip_pipeline"))
+        tag :input, { "type" => "image", "src" => src }.update(options)
       end
 
       # Creates a field set for grouping HTML form elements.

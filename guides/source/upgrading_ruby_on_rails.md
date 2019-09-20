@@ -76,6 +76,17 @@ Rails 5.2 adds bootsnap gem in the [newly generated app's Gemfile](https://githu
 The `app:update` task sets it up in `boot.rb`. If you want to use it, then add it in the Gemfile,
 otherwise change the `boot.rb` to not use bootsnap.
 
+### Expiry in signed or encrypted cookie is now embedded in the cookies values
+
+To improve security, Rails now embeds the expiry information also in encrypted or signed cookies value.
+
+This new embed information make those cookies incompatible with versions of Rails older than 5.2.
+
+If you require your cookies to be read by 5.1 and older, or you are still validating your 5.2 deploy and want
+to allow you to rollback set
+`Rails.application.config.action_dispatch.use_authenticated_cookie_encryption` to `false`.
+
+
 Upgrading from Rails 5.0 to Rails 5.1
 -------------------------------------
 
@@ -1331,6 +1342,17 @@ config.middleware.insert_before(Rack::Lock, ActionDispatch::BestStandardsSupport
 ```
 
 Also check your environment settings for `config.action_dispatch.best_standards_support` and remove it if present.
+
+* Rails 4.0 allows configuration of HTTP headers by setting `config.action_dispatch.default_headers`. The defaults are as follows:
+
+```ruby
+  config.action_dispatch.default_headers = {
+    'X-Frame-Options' => 'SAMEORIGIN',
+    'X-XSS-Protection' => '1; mode=block'
+  }
+```
+
+Please note that if your application is dependent on loading certain pages in a `<frame>` or `<iframe>`, then you may need to explicitly set `X-Frame-Options` to `ALLOW-FROM ...` or `ALLOWALL`.
 
 * In Rails 4.0, precompiling assets no longer automatically copies non-JS/CSS assets from `vendor/assets` and `lib/assets`. Rails application and engine developers should put these assets in `app/assets` or configure `config.assets.precompile`.
 

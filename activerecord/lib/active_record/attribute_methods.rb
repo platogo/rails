@@ -175,9 +175,20 @@ module ActiveRecord
       # Regexp whitelist. Matches the following:
       #   "#{table_name}.#{column_name}"
       #   "#{table_name}.#{column_name} #{direction}"
+      #   "#{table_name}.#{column_name} #{direction} NULLS FIRST"
+      #   "#{table_name}.#{column_name} NULLS LAST"
       #   "#{column_name}"
       #   "#{column_name} #{direction}"
-      COLUMN_NAME_ORDER_WHITELIST = /\A(?:\w+\.)?\w+(?:\s+asc|\s+desc)?\z/i
+      #   "#{column_name} #{direction} NULLS FIRST"
+      #   "#{column_name} NULLS LAST"
+      COLUMN_NAME_ORDER_WHITELIST = /
+        \A
+        (?:\w+\.)?
+        \w+
+        (?:\s+asc|\s+desc)?
+        (?:\s+nulls\s+(?:first|last))?
+        \z
+      /ix
 
       def enforce_raw_sql_whitelist(args, whitelist: COLUMN_NAME_WHITELIST) # :nodoc:
         unexpected = args.reject do |arg|
@@ -441,24 +452,18 @@ module ActiveRecord
 
     private
 
-      def arel_attributes_with_values_for_create(attribute_names)
-        arel_attributes_with_values(attributes_for_create(attribute_names))
+      def attributes_with_values_for_create(attribute_names)
+        attributes_with_values(attributes_for_create(attribute_names))
       end
 
-      def arel_attributes_with_values_for_update(attribute_names)
-        arel_attributes_with_values(attributes_for_update(attribute_names))
+      def attributes_with_values_for_update(attribute_names)
+        attributes_with_values(attributes_for_update(attribute_names))
       end
 
-      # Returns a Hash of the Arel::Attributes and attribute values that have been
-      # typecasted for use in an Arel insert/update method.
-      def arel_attributes_with_values(attribute_names)
-        attrs = {}
-        arel_table = self.class.arel_table
-
-        attribute_names.each do |name|
-          attrs[arel_table[name]] = _read_attribute(name)
+      def attributes_with_values(attribute_names)
+        attribute_names.each_with_object({}) do |name, attrs|
+          attrs[name] = _read_attribute(name)
         end
-        attrs
       end
 
       # Filters the primary keys and readonly attributes from the attribute names.

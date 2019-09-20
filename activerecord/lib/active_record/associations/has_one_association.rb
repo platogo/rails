@@ -60,6 +60,7 @@ module ActiveRecord
           when :destroy
             target.destroyed_by_association = reflection
             target.destroy
+            throw(:abort) unless target.destroyed?
           when :nullify
             target.update_columns(reflection.foreign_key => nil) if target.persisted?
           end
@@ -105,6 +106,14 @@ module ActiveRecord
           else
             yield
           end
+        end
+
+        def _create_record(attributes, raise_error = false, &block)
+          unless owner.persisted?
+            raise ActiveRecord::RecordNotSaved, "You cannot call create unless the parent is saved"
+          end
+
+          super
         end
     end
   end

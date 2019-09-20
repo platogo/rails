@@ -174,26 +174,22 @@ module ActiveRecord
         scope ? [scope] : []
       end
 
-      def build_join_constraint(table, foreign_table)
-        key         = join_keys.key
-        foreign_key = join_keys.foreign_key
-
-        constraint = table[key].eq(foreign_table[foreign_key])
-
-        if klass.finder_needs_type_condition?
-          table.create_and([constraint, klass.send(:type_condition, table)])
-        else
-          constraint
-        end
-      end
-
-      def join_scope(table, foreign_klass)
+      def join_scope(table, foreign_table, foreign_klass)
         predicate_builder = predicate_builder(table)
         scope_chain_items = join_scopes(table, predicate_builder)
         klass_scope       = klass_join_scope(table, predicate_builder)
 
+        key         = join_keys.key
+        foreign_key = join_keys.foreign_key
+
+        klass_scope.where!(table[key].eq(foreign_table[foreign_key]))
+
         if type
-          klass_scope.where!(type => foreign_klass.base_class.sti_name)
+          klass_scope.where!(type => foreign_klass.polymorphic_name)
+        end
+
+        if klass.finder_needs_type_condition?
+          klass_scope.where!(klass.send(:type_condition, table))
         end
 
         scope_chain_items.inject(klass_scope, &:merge!)
@@ -416,6 +412,9 @@ module ActiveRecord
     # Active Record class.
     class AssociationReflection < MacroReflection #:nodoc:
       def compute_class(name)
+        if polymorphic?
+          raise ArgumentError, "Polymorphic association does not support to compute class."
+        end
         active_record.send(:compute_type, name)
       end
 
@@ -626,9 +625,6 @@ module ActiveRecord
         # +automatic_inverse_of+ method is a valid reflection. We must
         # make sure that the reflection's active_record name matches up
         # with the current reflection's klass name.
-        #
-        # Note: klass will always be valid because when there's a NameError
-        # from calling +klass+, +reflection+ will already be set to false.
         def valid_inverse_reflection?(reflection)
           reflection &&
             klass <= reflection.active_record &&
@@ -732,6 +728,9 @@ module ActiveRecord
       end
 
       private
+        def can_find_inverse_of_automatically?(_)
+          !polymorphic? && super
+        end
 
         def calculate_constructable(macro, options)
           !polymorphic?

@@ -95,6 +95,12 @@ module ActiveSupport::Cache::RedisCacheStoreTests
       end
     end
 
+    test "instance of Redis uses given instance" do
+      redis_instance = Redis.new
+      @cache = build(redis: redis_instance)
+      assert_same @cache.redis, redis_instance
+    end
+
     private
       def build(**kwargs)
         ActiveSupport::Cache::RedisCacheStore.new(driver: DRIVER, **kwargs).tap do |cache|
@@ -143,7 +149,7 @@ module ActiveSupport::Cache::RedisCacheStoreTests
     private
 
       def store
-        :redis_cache_store
+        [:redis_cache_store]
       end
 
       def emulating_latency
@@ -160,7 +166,7 @@ module ActiveSupport::Cache::RedisCacheStoreTests
   class RedisDistributedConnectionPoolBehaviourTest < ConnectionPoolBehaviourTest
     private
       def store_options
-        { url: %w[ redis://localhost:6379/0 redis://localhost:6379/0 ] }
+        { url: [ENV["REDIS_URL"] || "redis://localhost:6379/0"] * 2 }
       end
   end
 
@@ -213,6 +219,24 @@ module ActiveSupport::Cache::RedisCacheStoreTests
       assert_raise ArgumentError do
         @cache.delete_matched(/OO/i)
       end
+    end
+  end
+
+  class ClearTest < StoreTest
+    test "clear all cache key" do
+      @cache.write("foo", "bar")
+      @cache.write("fu", "baz")
+      @cache.clear
+      assert !@cache.exist?("foo")
+      assert !@cache.exist?("fu")
+    end
+
+    test "only clear namespace cache key" do
+      @cache.write("foo", "bar")
+      @cache.redis.set("fu", "baz")
+      @cache.clear
+      assert !@cache.exist?("foo")
+      assert @cache.redis.exists("fu")
     end
   end
 end

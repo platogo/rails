@@ -4,6 +4,14 @@
 gem "pg", ">= 0.18", "< 2.0"
 require "pg"
 
+# Use async_exec instead of exec_params on pg versions before 1.1
+class ::PG::Connection
+  unless self.public_method_defined?(:async_exec_params)
+    remove_method :exec_params
+    alias exec_params async_exec
+  end
+end
+
 require "active_record/connection_adapters/abstract_adapter"
 require "active_record/connection_adapters/statement_pool"
 require "active_record/connection_adapters/postgresql/column"
@@ -465,7 +473,7 @@ module ActiveRecord
           register_class_with_limit m, "bit", OID::Bit
           register_class_with_limit m, "varbit", OID::BitVarying
           m.alias_type "timestamptz", "timestamp"
-          m.register_type "date", Type::Date.new
+          m.register_type "date", OID::Date.new
 
           m.register_type "money", OID::Money.new
           m.register_type "bytea", OID::Bytea.new
@@ -600,7 +608,7 @@ module ActiveRecord
           type_casted_binds = type_casted_binds(binds)
           log(sql, name, binds, type_casted_binds) do
             ActiveSupport::Dependencies.interlock.permit_concurrent_loads do
-              @connection.async_exec(sql, type_casted_binds)
+              @connection.exec_params(sql, type_casted_binds)
             end
           end
         end
@@ -837,6 +845,7 @@ module ActiveRecord
         ActiveRecord::Type.register(:bit_varying, OID::BitVarying, adapter: :postgresql)
         ActiveRecord::Type.register(:binary, OID::Bytea, adapter: :postgresql)
         ActiveRecord::Type.register(:cidr, OID::Cidr, adapter: :postgresql)
+        ActiveRecord::Type.register(:date, OID::Date, adapter: :postgresql)
         ActiveRecord::Type.register(:datetime, OID::DateTime, adapter: :postgresql)
         ActiveRecord::Type.register(:decimal, OID::Decimal, adapter: :postgresql)
         ActiveRecord::Type.register(:enum, OID::Enum, adapter: :postgresql)

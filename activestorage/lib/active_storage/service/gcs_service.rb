@@ -3,6 +3,8 @@
 gem "google-cloud-storage", "~> 1.8"
 
 require "google/cloud/storage"
+require "net/http"
+
 require "active_support/core_ext/object/to_query"
 
 module ActiveStorage
@@ -13,18 +15,26 @@ module ActiveStorage
       @config = config
     end
 
-    def upload(key, io, checksum: nil)
+    def upload(key, io, checksum: nil, content_type: nil, disposition: nil, filename: nil)
       instrument :upload, key: key, checksum: checksum do
         begin
-          # The official GCS client library doesn't allow us to create a file with no Content-Type metadata.
-          # We need the file we create to have no Content-Type so we can control it via the response-content-type
-          # param in signed URLs. Workaround: let the GCS client create the file with an inferred
-          # Content-Type (usually "application/octet-stream") then clear it.
-          bucket.create_file(io, key, md5: checksum).update do |file|
-            file.content_type = nil
-          end
+          # GCS's signed URLs don't include params such as response-content-type response-content_disposition
+          # in the signature, which means an attacker can modify them and bypass our effort to force these to
+          # binary and attachment when the file's content type requires it. The only way to force them is to
+          # store them as object's metadata.
+          content_disposition = content_disposition_with(type: disposition, filename: filename) if disposition && filename
+          bucket.create_file(io, key, md5: checksum, content_type: content_type, content_disposition: content_disposition)
         rescue Google::Cloud::InvalidArgumentError
           raise ActiveStorage::IntegrityError
+        end
+      end
+    end
+
+    def update_metadata(key, content_type:, disposition: nil, filename: nil)
+      instrument :update_metadata, key: key, content_type: content_type, disposition: disposition do
+        file_for(key).update do |file|
+          file.content_type = content_type
+          file.content_disposition = content_disposition_with(type: disposition, filename: filename) if disposition && filename
         end
       end
     end
@@ -36,9 +46,20 @@ module ActiveStorage
         io.rewind
 
         if block_given?
-          yield io.read
+          yield io.string
         else
-          io.read
+          io.string
+        end
+      end
+    end
+
+    def download_chunk(key, range)
+      instrument :download_chunk, key: key, range: range do
+        file = file_for(key)
+        uri  = URI(file.signed_url(expires: 30.seconds))
+
+        Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https") do |client|
+          client.get(uri, "Range" => "bytes=#{range.begin}-#{range.exclude_end? ? range.end - 1 : range.end}").body
         end
       end
     end
@@ -55,7 +76,13 @@ module ActiveStorage
 
     def delete_prefixed(prefix)
       instrument :delete_prefixed, prefix: prefix do
-        bucket.files(prefix: prefix).all(&:delete)
+        bucket.files(prefix: prefix).all do |file|
+          begin
+            file.delete
+          rescue Google::Cloud::NotFoundError
+            # Ignore concurrently-deleted files
+          end
+        end
       end
     end
 
@@ -80,10 +107,9 @@ module ActiveStorage
       end
     end
 
-    def url_for_direct_upload(key, expires_in:, content_type:, content_length:, checksum:)
+    def url_for_direct_upload(key, expires_in:, checksum:, **)
       instrument :url, key: key do |payload|
-        generated_url = bucket.signed_url key, method: "PUT", expires: expires_in,
-          content_type: content_type, content_md5: checksum
+        generated_url = bucket.signed_url key, method: "PUT", expires: expires_in, content_md5: checksum
 
         payload[:url] = generated_url
 
@@ -91,8 +117,8 @@ module ActiveStorage
       end
     end
 
-    def headers_for_direct_upload(key, content_type:, checksum:, **)
-      { "Content-Type" => content_type, "Content-MD5" => checksum }
+    def headers_for_direct_upload(key, checksum:, **)
+      { "Content-MD5" => checksum }
     end
 
     private

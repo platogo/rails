@@ -457,12 +457,8 @@ module ActionController
       # respectively which will make tests more expressive.
       #
       # Note that the request method is not verified.
-      def process(action, method: "GET", params: {}, session: nil, body: nil, flash: {}, format: nil, xhr: false, as: nil)
+      def process(action, method: "GET", params: nil, session: nil, body: nil, flash: {}, format: nil, xhr: false, as: nil)
         check_required_ivars
-
-        if body
-          @request.set_header "RAW_POST_DATA", body
-        end
 
         http_method = method.to_s.upcase
 
@@ -478,6 +474,10 @@ module ActionController
         @response.request = @request
         @controller.recycle!
 
+        if body
+          @request.set_header "RAW_POST_DATA", body
+        end
+
         @request.set_header "REQUEST_METHOD", http_method
 
         if as
@@ -485,7 +485,7 @@ module ActionController
           format ||= as
         end
 
-        parameters = params.symbolize_keys
+        parameters = (params || {}).symbolize_keys
 
         if format
           parameters[:format] = format
@@ -604,6 +604,8 @@ module ActionController
           env.delete "action_dispatch.request.query_parameters"
           env.delete "action_dispatch.request.request_parameters"
           env["rack.input"] = StringIO.new
+          env.delete "CONTENT_LENGTH"
+          env.delete "RAW_POST_DATA"
           env
         end
 

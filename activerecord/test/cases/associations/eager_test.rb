@@ -4,6 +4,7 @@ require "cases/helper"
 require "models/post"
 require "models/tagging"
 require "models/tag"
+require "models/rating"
 require "models/comment"
 require "models/author"
 require "models/essay"
@@ -18,6 +19,7 @@ require "models/job"
 require "models/subscriber"
 require "models/subscription"
 require "models/book"
+require "models/citation"
 require "models/developer"
 require "models/computer"
 require "models/project"
@@ -29,9 +31,21 @@ require "models/sponsor"
 require "models/mentor"
 require "models/contract"
 
+class EagerLoadingTooManyIdsTest < ActiveRecord::TestCase
+  fixtures :citations
+
+  def test_preloading_too_many_ids
+    assert_equal Citation.count, Citation.preload(:reference_of).to_a.size
+  end
+
+  def test_eager_loading_too_may_ids
+    assert_equal Citation.count, Citation.eager_load(:citations).offset(0).size
+  end
+end
+
 class EagerAssociationTest < ActiveRecord::TestCase
   fixtures :posts, :comments, :authors, :essays, :author_addresses, :categories, :categories_posts,
-            :companies, :accounts, :tags, :taggings, :people, :readers, :categorizations,
+            :companies, :accounts, :tags, :taggings, :ratings, :people, :readers, :categorizations,
             :owners, :pets, :author_favorites, :jobs, :references, :subscribers, :subscriptions, :books,
             :developers, :projects, :developers_projects, :members, :memberships, :clubs, :sponsors
 
@@ -76,9 +90,91 @@ class EagerAssociationTest < ActiveRecord::TestCase
       "expected to find only david's posts"
   end
 
+  def test_loading_polymorphic_association_with_mixed_table_conditions
+    rating = Rating.first
+    assert_equal [taggings(:normal_comment_rating)], rating.taggings_without_tag
+
+    rating = Rating.preload(:taggings_without_tag).first
+    assert_equal [taggings(:normal_comment_rating)], rating.taggings_without_tag
+
+    rating = Rating.eager_load(:taggings_without_tag).first
+    assert_equal [taggings(:normal_comment_rating)], rating.taggings_without_tag
+  end
+
+  def test_loading_association_with_string_joins
+    rating = Rating.first
+    assert_equal [taggings(:normal_comment_rating)], rating.taggings_with_no_tag
+
+    rating = Rating.preload(:taggings_with_no_tag).first
+    assert_equal [taggings(:normal_comment_rating)], rating.taggings_with_no_tag
+
+    rating = Rating.eager_load(:taggings_with_no_tag).first
+    assert_equal [taggings(:normal_comment_rating)], rating.taggings_with_no_tag
+  end
+
   def test_loading_with_scope_including_joins
-    assert_equal clubs(:boring_club), Member.preload(:general_club).find(1).general_club
-    assert_equal clubs(:boring_club), Member.eager_load(:general_club).find(1).general_club
+    member = Member.first
+    assert_equal members(:groucho), member
+    assert_equal clubs(:boring_club), member.general_club
+
+    member = Member.preload(:general_club).first
+    assert_equal members(:groucho), member
+    assert_equal clubs(:boring_club), member.general_club
+
+    member = Member.eager_load(:general_club).first
+    assert_equal members(:groucho), member
+    assert_equal clubs(:boring_club), member.general_club
+  end
+
+  def test_loading_association_with_same_table_joins
+    super_memberships = [memberships(:super_membership_of_boring_club)]
+
+    member = Member.joins(:favourite_memberships).first
+    assert_equal members(:groucho), member
+    assert_equal super_memberships, member.super_memberships
+
+    member = Member.joins(:favourite_memberships).preload(:super_memberships).first
+    assert_equal members(:groucho), member
+    assert_equal super_memberships, member.super_memberships
+
+    member = Member.joins(:favourite_memberships).eager_load(:super_memberships).first
+    assert_equal members(:groucho), member
+    assert_equal super_memberships, member.super_memberships
+  end
+
+  def test_loading_association_with_intersection_joins
+    member = Member.joins(:current_membership).first
+    assert_equal members(:groucho), member
+    assert_equal clubs(:boring_club), member.club
+    assert_equal memberships(:membership_of_boring_club), member.current_membership
+
+    member = Member.joins(:current_membership).preload(:club, :current_membership).first
+    assert_equal members(:groucho), member
+    assert_equal clubs(:boring_club), member.club
+    assert_equal memberships(:membership_of_boring_club), member.current_membership
+
+    member = Member.joins(:current_membership).eager_load(:club, :current_membership).first
+    assert_equal members(:groucho), member
+    assert_equal clubs(:boring_club), member.club
+    assert_equal memberships(:membership_of_boring_club), member.current_membership
+  end
+
+  def test_loading_associations_dont_leak_instance_state
+    assertions = ->(firm) {
+      assert_equal companies(:first_firm), firm
+
+      assert_predicate firm.association(:readonly_account), :loaded?
+      assert_predicate firm.association(:accounts), :loaded?
+
+      assert_equal accounts(:signals37), firm.readonly_account
+      assert_equal [accounts(:signals37)], firm.accounts
+
+      assert_predicate firm.readonly_account, :readonly?
+      assert firm.accounts.none?(&:readonly?)
+    }
+
+    assertions.call(Firm.preload(:readonly_account, :accounts).first)
+    assertions.call(Firm.eager_load(:readonly_account, :accounts).first)
   end
 
   def test_with_ordering
@@ -1218,6 +1314,7 @@ class EagerAssociationTest < ActiveRecord::TestCase
 
     client = assert_queries(2) { Client.preload(:firm).find(c.id) }
     assert_no_queries { assert_nil client.firm }
+    assert_equal c.client_of, client.client_of
   end
 
   def test_preloading_empty_belongs_to_polymorphic
@@ -1225,6 +1322,7 @@ class EagerAssociationTest < ActiveRecord::TestCase
 
     tagging = assert_queries(2) { Tagging.preload(:taggable).find(t.id) }
     assert_no_queries { assert_nil tagging.taggable }
+    assert_equal t.taggable_id, tagging.taggable_id
   end
 
   def test_preloading_through_empty_belongs_to
@@ -1501,8 +1599,10 @@ class EagerAssociationTest < ActiveRecord::TestCase
     assert_equal posts(:welcome), post
   end
 
-  test "eager-loading with a polymorphic association and using the existential predicate" do
-    assert_equal true, authors(:david).essays.eager_load(:writer).exists?
+  test "eager-loading with a polymorphic association won't work consistently" do
+    assert_raise(ActiveRecord::EagerLoadPolymorphicError) { authors(:david).essays.eager_load(:writer).to_a }
+    assert_raise(ActiveRecord::EagerLoadPolymorphicError) { authors(:david).essays.eager_load(:writer).count }
+    assert_raise(ActiveRecord::EagerLoadPolymorphicError) { authors(:david).essays.eager_load(:writer).exists? }
   end
 
   # CollectionProxy#reader is expensive, so the preloader avoids calling it.

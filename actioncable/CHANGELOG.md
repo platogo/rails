@@ -1,14 +1,29 @@
-## Rails 5.2.0.rc1 (January 30, 2018) ##
+## Rails 5.2.3 (March 27, 2019) ##
 
 *   No changes.
 
 
-## Rails 5.2.0.beta2 (November 28, 2017) ##
+## Rails 5.2.2.1 (March 11, 2019) ##
 
 *   No changes.
 
 
-## Rails 5.2.0.beta1 (November 27, 2017) ##
+## Rails 5.2.2 (December 04, 2018) ##
+
+*   No changes.
+
+
+## Rails 5.2.1.1 (November 27, 2018) ##
+
+*   No changes.
+
+
+## Rails 5.2.1 (August 07, 2018) ##
+
+*   No changes.
+
+
+## Rails 5.2.0 (April 09, 2018) ##
 
 *   Removed deprecated evented redis adapter.
 

@@ -419,7 +419,7 @@ WARNING: _Source code in uploaded files may be executed when placed in specific 
 
 The popular Apache web server has an option called DocumentRoot. This is the home directory of the web site, everything in this directory tree will be served by the web server. If there are files with a certain file name extension, the code in it will be executed when requested (might require some options to be set). Examples for this are PHP and CGI files. Now think of a situation where an attacker uploads a file "file.cgi" with code in it, which will be executed when someone downloads the file.
 
-_If your Apache DocumentRoot points to Rails' /public directory, do not put file uploads in it_, store files at least one level downwards.
+_If your Apache DocumentRoot points to Rails' /public directory, do not put file uploads in it_, store files at least one level upwards.
 
 ### File Downloads
 
@@ -1100,6 +1100,118 @@ Here is a list of common headers:
 * **X-Content-Security-Policy:** [A powerful mechanism for controlling which sites certain content types can be loaded from](http://w3c.github.io/webappsec/specs/content-security-policy/csp-specification.dev.html)
 * **Access-Control-Allow-Origin:** Used to control which sites are allowed to bypass same origin policies and send cross-origin requests.
 * **Strict-Transport-Security:** [Used to control if the browser is allowed to only access a site over a secure connection](https://en.wikipedia.org/wiki/HTTP_Strict_Transport_Security)
+
+### Content Security Policy
+
+Rails provides a DSL that allows you to configure a
+[Content Security Policy](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy)
+for your application. You can configure a global default policy and then
+override it on a per-resource basis and even use lambdas to inject per-request
+values into the header such as account subdomains in a multi-tenant application.
+
+Example global policy:
+
+```ruby
+# config/initializers/content_security_policy.rb
+Rails.application.config.content_security_policy do |policy|
+  policy.default_src :self, :https
+  policy.font_src    :self, :https, :data
+  policy.img_src     :self, :https, :data
+  policy.object_src  :none
+  policy.script_src  :self, :https
+  policy.style_src   :self, :https
+
+  # Specify URI for violation reports
+  policy.report_uri "/csp-violation-report-endpoint"
+end
+```
+
+Example controller overrides:
+
+```ruby
+# Override policy inline
+class PostsController < ApplicationController
+  content_security_policy do |p|
+    p.upgrade_insecure_requests true
+  end
+end
+
+# Using literal values
+class PostsController < ApplicationController
+  content_security_policy do |p|
+    p.base_uri "https://www.example.com"
+  end
+end
+
+# Using mixed static and dynamic values
+class PostsController < ApplicationController
+  content_security_policy do |p|
+    p.base_uri :self, -> { "https://#{current_user.domain}.example.com" }
+  end
+end
+
+# Disabling the global CSP
+class LegacyPagesController < ApplicationController
+  content_security_policy false, only: :index
+end
+```
+
+Use the `content_security_policy_report_only`
+configuration attribute to set
+[Content-Security-Policy-Report-Only](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy-Report-Only)
+in order to report only content violations for migrating
+legacy content
+
+```ruby
+# config/initializers/content_security_policy.rb
+Rails.application.config.content_security_policy_report_only = true
+```
+
+```ruby
+# Controller override
+class PostsController < ApplicationController
+  content_security_policy_report_only only: :index
+end
+```
+
+You can enable automatic nonce generation:
+
+```ruby
+# config/initializers/content_security_policy.rb
+Rails.application.config.content_security_policy do |policy|
+  policy.script_src :self, :https
+end
+
+Rails.application.config.content_security_policy_nonce_generator = -> request { SecureRandom.base64(16) }
+```
+
+Then you can add an automatic nonce value by passing `nonce: true`
+as part of `html_options`. Example:
+
+```html+erb
+<%= javascript_tag nonce: true do -%>
+  alert('Hello, World!');
+<% end -%>
+```
+
+The same works with `javascript_include_tag`:
+
+```html+erb
+<%= javascript_include_tag "script", nonce: true %>
+```
+
+Use [`csp_meta_tag`](http://api.rubyonrails.org/classes/ActionView/Helpers/CspHelper.html#method-i-csp_meta_tag)
+helper to create a meta tag "csp-nonce" with the per-session nonce value
+for allowing inline `<script>` tags.
+
+```html+erb
+<head>
+  <%= csp_meta_tag %>
+</head>
+```
+
+This is used by the Rails UJS helper to create dynamically
+loaded inline `<script>` elements.
 
 Environmental Security
 ----------------------

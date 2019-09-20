@@ -1,6 +1,86 @@
-## Rails 5.2.0.rc1 (January 30, 2018) ##
+## Rails 5.2.3 (March 27, 2019) ##
 
-*   Add source code to published npm package
+*   No changes.
+
+
+## Rails 5.2.2.1 (March 11, 2019) ##
+
+*   No changes.
+
+
+## Rails 5.2.2 (December 04, 2018) ##
+
+*   Support multiple submit buttons in Active Storage forms.
+
+    *Chrıs Seelus*
+
+*   Fix `ArgumentError` when uploading to amazon s3
+
+    *Hiroki Sanpei*
+
+*   Add a foreign-key constraint to the `active_storage_attachments` table for blobs.
+
+    *George Claghorn*
+
+*   Discard `ActiveStorage::PurgeJobs` for missing blobs.
+
+    *George Claghorn*
+
+*   Fix uploading Tempfiles to Azure Storage.
+
+    *George Claghorn*
+
+
+## Rails 5.2.1.1 (November 27, 2018) ##
+
+*   Prevent content type and disposition bypass in storage service URLs.
+
+    Fix CVE-2018-16477.
+
+    *Rosa Gutierrez*
+
+
+## Rails 5.2.1 (August 07, 2018) ##
+
+*   Fix direct upload with zero-byte files.
+
+    *George Claghorn*
+
+*   Exclude JSON root from `active_storage/direct_uploads#create` response.
+
+    *Javan Makhmali*
+
+
+## Rails 5.2.0 (April 09, 2018) ##
+
+*   Allow full use of the AWS S3 SDK options for authentication. If an
+    explicit AWS key pair and/or region is not provided in `storage.yml`,
+    attempt to use environment variables, shared credentials, or IAM
+    (instance or task) role credentials. Order of precedence is determined
+    by the [AWS SDK](https://docs.aws.amazon.com/sdk-for-ruby/v3/developer-guide/setup-config.html).
+
+    *Brian Knight*
+
+*   Remove path config option from Azure service.
+
+    The Active Storage service for Azure Storage has an option called `path`
+    that is ambiguous in meaning. It needs to be set to the primary blob
+    storage endpoint but that can be determined from the blobs client anyway.
+
+    To simplify the configuration, we've removed the `path` option and
+    now get the endpoint from the blobs client instead.
+
+    Closes #32225.
+
+    *Andrew White*
+
+*   Generate root-relative paths in disk service URL methods.
+
+    Obviate the disk service's `:host` configuration option.
+
+    *George Claghorn*
+
+*   Add source code to published npm package.
 
     This allows activestorage users to depend on the javascript source code
     rather than the compiled code, which can produce smaller javascript bundles.
@@ -21,7 +101,6 @@
 
     *Hiroki Zenigami*
 
-
 *   Force `:attachment` disposition for specific, configurable content types.
     This mitigates possible security issues such as XSS or phishing when
     serving them inline. A list of such content types is included by default,
@@ -29,15 +108,9 @@
 
     *Rosa Gutierrez*
 
-
-## Rails 5.2.0.beta2 (November 28, 2017) ##
-
 *   Fix the gem adding the migrations files to the package.
 
     *Yuji Yaginuma*
-
-
-## Rails 5.2.0.beta1 (November 27, 2017) ##
 
 *   Added to Rails.
 

@@ -338,6 +338,9 @@ module ActionDispatch
       end
       alias :has_key? :key?
 
+      # Returns the cookies as Hash.
+      alias :to_hash :to_h
+
       def update(other_hash)
         @cookies.update other_hash.stringify_keys
         self
@@ -487,10 +490,14 @@ module ActionDispatch
 
       private
         def expiry_options(options)
-          if options[:expires].respond_to?(:from_now)
-            { expires_in: options[:expires] }
+          if request.use_authenticated_cookie_encryption
+            if options[:expires].respond_to?(:from_now)
+              { expires_in: options[:expires] }
+            else
+              { expires_at: options[:expires] }
+            end
           else
-            { expires_at: options[:expires] }
+            {}
           end
         end
 

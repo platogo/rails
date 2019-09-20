@@ -36,6 +36,12 @@ class CookieJarTest < ActiveSupport::TestCase
     assert_equal "bar", request.cookie_jar.fetch(:foo)
   end
 
+  def test_to_hash
+    request.cookie_jar["foo"] = "bar"
+    assert_equal({ "foo" => "bar" }, request.cookie_jar.to_hash)
+    assert_equal({ "foo" => "bar" }, request.cookie_jar.to_h)
+  end
+
   def test_fetch_type_error
     assert_raises(KeyError) do
       request.cookie_jar.fetch(:omglolwut)
@@ -1277,6 +1283,18 @@ class CookiesTest < ActionController::TestCase
     assert_nil cookies.signed[:user_name]
   end
 
+  def test_signed_cookie_does_not_embed_expiration_if_config_is_set_to_false
+    @request.env['action_dispatch.use_authenticated_cookie_encryption'] = false
+
+    cookies.signed[:user_name] = { value: "assain", expires: 2.hours }
+
+    travel 1.hour
+    assert_equal "assain", cookies.signed[:user_name]
+
+    travel 2.hours
+    assert_equal "assain", cookies.signed[:user_name]
+  end
+
   def test_encrypted_cookie_with_expires_set_relatively
     cookies.encrypted[:user_name] = { value: "assain", expires: 2.hours }
 
@@ -1285,6 +1303,18 @@ class CookiesTest < ActionController::TestCase
 
     travel 2.hours
     assert_nil cookies.encrypted[:user_name]
+  end
+
+  def test_encrypted_cookie_does_not_embed_expiration_if_config_is_set_to_false
+    @request.env['action_dispatch.use_authenticated_cookie_encryption'] = false
+
+    cookies.encrypted[:user_name] = { value: "assain", expires: 2.hours }
+
+    travel 1.hour
+    assert_equal "assain", cookies.encrypted[:user_name]
+
+    travel 2.hours
+    assert_equal "assain", cookies.encrypted[:user_name]
   end
 
   def test_vanilla_cookie_with_expires_set_relatively

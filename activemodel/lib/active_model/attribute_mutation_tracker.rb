@@ -11,6 +11,10 @@ module ActiveModel
       @forced_changes = Set.new
     end
 
+    def changed_attribute_names
+      attr_names.select { |attr_name| changed?(attr_name) }
+    end
+
     def changed_values
       attr_names.each_with_object({}.with_indifferent_access) do |attr_name, result|
         if changed?(attr_name)
@@ -23,7 +27,7 @@ module ActiveModel
       attr_names.each_with_object({}.with_indifferent_access) do |attr_name, result|
         change = change_to_attribute(attr_name)
         if change
-          result[attr_name] = change
+          result.merge!(attr_name => change)
         end
       end
     end
@@ -33,10 +37,6 @@ module ActiveModel
       if changed?(attr_name)
         [attributes[attr_name].original_value, attributes.fetch_value(attr_name)]
       end
-    end
-
-    def changed_attribute_names
-      attr_names.select { |attr| changed?(attr) }
     end
 
     def any_changes?
@@ -85,6 +85,10 @@ module ActiveModel
   class NullMutationTracker # :nodoc:
     include Singleton
 
+    def changed_attribute_names(*)
+      []
+    end
+
     def changed_values(*)
       {}
     end
@@ -112,6 +116,9 @@ module ActiveModel
     end
 
     def original_value(*)
+    end
+
+    def force_change(*)
     end
   end
 end
